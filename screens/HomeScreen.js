@@ -12,7 +12,12 @@ export default function HomeScreen() {
 
 			<Button
 				title="Aller aux détails"
-				onPress={() => navigation.navigate("Details", { id: 42 })}
+				onPress={() =>
+					navigation.navigate("Liste", {
+						screen: "Détails",
+						params: { id: 42 },
+					})
+				}
 			/>
 		</View>
 	);

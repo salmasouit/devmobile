@@ -1,20 +1,44 @@
 import { useState, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity } from "react-native";
+import { useSelector, useDispatch } from "react-redux"; // conservé
+import { addTodo } from "../store/todosSlice"; // conservé
+import { useTodoStore } from "../store/useTodoStore"; // Zustand
 import AppBar from "./components/AppBar";
 
 export default function TodoListScreen({ navigation }) {
-  const [todos, setTodos] = useState([]);
+  const todos = useSelector((state) => state.todos);
+  const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
+  const [todosLocal, setTodosLocal] = useState([]);
+  const { todos: zTodos, addTodo: zAddTodo } = useTodoStore();
 
   useEffect(() => {
-    setTimeout(() => {
-      setTodos([
-        { id: 1, title: "Faire les courses" },
-        { id: 2, title: "Sortir le chien" },
-        { id: 3, title: "Coder une app RN" },
-      ]);
+    const seed = [
+      { id: 1, title: "Faire les courses" },
+      { id: 2, title: "Sortir le chien" },
+      { id: 3, title: "Coder une app RN" },
+    ];
+
+    const timer = setTimeout(() => {
+      // Keep original timeout/loading behavior
+      setTodosLocal(seed);
+
+      // Seed Zustand (preferred source)
+      // NOTE: We use Zustand now as requested; Redux seeding kept for reference below.
+      if (!zTodos || zTodos.length === 0) {
+        seed.forEach((t) => zAddTodo(t));
+      }
+
+      // Also populate the Redux store (kept for compatibility)
+      // If you want to disable Redux seeding, comment the block below.
+      // if (!todos || todos.length === 0) {
+      //   seed.forEach((t) => dispatch(addTodo(t)));
+      // }
+
       setLoading(false);
     }, 1000);
+
+    return () => clearTimeout(timer);
   }, []);
 
   if (loading) {
@@ -33,7 +57,8 @@ export default function TodoListScreen({ navigation }) {
         <Text style={{ fontSize: 24, marginBottom: 10 }}>Mes tâches</Text>
 
         <FlatList
-          data={todos}
+          // Prefer Zustand todos; fallback to Redux, else local
+          data={(zTodos && zTodos.length > 0) ? zTodos : (todos && todos.length > 0) ? todos : todosLocal}
           keyExtractor={(i) => i.id.toString()}
           renderItem={({ item }) => (
             <TouchableOpacity

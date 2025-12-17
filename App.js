@@ -4,10 +4,13 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Provider } from 'react-redux';
+import { store } from './store/store';
 import AppBar from './screens/Appbar';
 import HomeScreen from "./screens/HomeScreen";
 import LoginScreen from "./screens/LoginScreen";
 import AppStack from "./screens/navigation/AppStack";
+import AppDrawer from "./screens/navigation/AppDrawer";
 import AuthProvider, { AuthContext } from "./screens/context/AuthContext";
 
 
@@ -80,15 +83,17 @@ function MainTabs() {
 
 function RootNavigator() {
   const { user } = useContext(AuthContext) || {};
-  return user ? <MainTabs /> : <LoginScreen />;
+  return user ? <AppDrawer /> : <LoginScreen />;
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
-    </AuthProvider>
+    <Provider store={store}>
+      <AuthProvider>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
+    </Provider>
   );
 }
