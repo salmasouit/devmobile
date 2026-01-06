@@ -1,8 +1,8 @@
-import { useEffect, useState, useContext } from "react";
+import { ThemeProvider } from "./context/ThemeContext"; 
+import { AuthProvider } from "./context/AuthContext"; 
+import AppStack from "./navigation/AppStack"; 
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, StyleSheet, ActivityIndicator } from "react-native";
-import { initDB } from "./services/database";
-import { ThemeProvider, ThemeContext } from "./context/ThemeContext";
-import TodoListOfflineScreen from "./screens/TodoListOfflineScreen";
 function MainApp() {
 const { theme } = useContext(ThemeContext);
 return (
@@ -16,24 +16,17 @@ return (
  </View>
 );
 }
-export default function App() {
-const [dbReady, setDbReady] = useState(false);
-useEffect(() => {
- const prepareDb = async () => {
- await initDB(); // attendre SQLite
- setDbReady(true); // OK pour afficher l’app
- };
- prepareDb();
-}, []);
-if (!dbReady) {
- return <ActivityIndicator size="large" />;
-}
-return (
- <ThemeProvider>
- <MainApp />
- </ThemeProvider>
-);
-}
+export default function App() { 
+ return ( 
+   <SafeAreaProvider> 
+     <ThemeProvider> 
+       <AuthProvider> 
+         <AppStack /> 
+       </AuthProvider> 
+     </ThemeProvider> 
+   </SafeAreaProvider> 
+ ); 
+} 
 const styles = StyleSheet.create({
 container: {
  flex: 1,
