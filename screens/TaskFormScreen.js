@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, ScrollView
 import { useNavigation, useRoute } from "@react-navigation/native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AuthContext } from "../context/AuthContext";
-import { addTodoToFirestore, updateTodoInFirestore, listenToCategories } from "../services/firestore";
+import { addTodoToFirestore, updateTodoInFirestore, listenToCategories, listenToUserSettings } from "../services/firestore";
 import { scheduleTaskReminder, registerForPushNotificationsAsync } from "../services/notifications";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -22,6 +22,7 @@ export default function TaskFormScreen() {
     const [category, setCategory] = useState(editingTask?.category || "personal");
     const [categories, setCategories] = useState([]);
     const [priority, setPriority] = useState(editingTask?.priority || "medium");
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
 
     const [dueDate, setDueDate] = useState(editingTask?.dueDate ? new Date(editingTask.dueDate.seconds * 1000) : new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -45,7 +46,7 @@ export default function TaskFormScreen() {
         if (Platform.OS !== 'web') {
             registerForPushNotificationsAsync().catch(err => console.log("Notification permissions error:", err));
         }
-    }, []);
+    }, [user]);
 
     const handleSave = async () => {
         if (!title.trim()) {
@@ -76,20 +77,20 @@ export default function TaskFormScreen() {
                 savedId = docRef.id;
             }
 
-            // Notifications (Skip on Web for now if specific API not supported, or wrap in try-catch)
+            // Message de succès immédiat
+            if (Platform.OS === 'web') {
+                alert("Tâche enregistrée !");
+            } else {
+                Alert.alert("Succès", "La tâche a été enregistrée avec succès.");
+            }
+
+            // Notifications (Skip on Web)
             if (Platform.OS !== 'web' && hasReminder && savedId) {
                 try {
                     await scheduleTaskReminder({ ...taskData, id: savedId });
                 } catch (notiError) {
                     console.log("Notification scheduling failed:", notiError);
-                    // Don't block saving if notification fails
                 }
-            }
-
-            if (Platform.OS === 'web') {
-                window.alert("Tâche enregistrée !");
-            } else {
-                Alert.alert("Succès", "Tâche enregistrée !");
             }
 
             navigation.navigate("App", {
@@ -97,8 +98,12 @@ export default function TaskFormScreen() {
                 params: { lastUpdate: Date.now() }
             });
         } catch (error) {
-            console.error(error);
-            Alert.alert("Erreur", "Impossible d'enregistrer la tâche. Vérifiez votre connexion.");
+            console.error("Save Error:", error);
+            if (Platform.OS === 'web') {
+                alert("Erreur d'enregistrement : " + error.message);
+            } else {
+                Alert.alert("Erreur", "Impossible d'enregistrer la tâche. Vérifiez votre connexion.");
+            }
         } finally {
             setLoading(false);
         }
@@ -198,55 +203,83 @@ export default function TaskFormScreen() {
 
                     {/* Web Date Picker Logic */}
                     {Platform.OS === 'web' ? (
-                        <TouchableOpacity
-                            style={styles.dateButton}
-                            onPress={() => {
-                                // Trigger the native date picker
-                                const input = document.getElementById('web-date-input');
-                                if (input) {
-                                    if (input.showPicker) input.showPicker();
-                                    else input.focus();
-                                }
-                            }}
-                        >
-                            <Ionicons name="calendar-outline" size={20} color="#333" style={{ marginRight: 10 }} />
-                            <Text style={styles.dateText}>
-                                {dueDate && !isNaN(dueDate) ? dueDate.toLocaleDateString() : 'Choisir une date'}
-                            </Text>
-                            <input
-                                id="web-date-input"
-                                type="date"
-                                style={{
-                                    position: 'absolute',
-                                    visibility: 'hidden',
-                                    width: 0,
-                                    height: 0,
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <TouchableOpacity
+                                style={[styles.dateButton, { flex: 1 }]}
+                                onPress={() => {
+                                    const input = document.getElementById('web-task-date');
+                                    if (input && input.showPicker) input.showPicker();
                                 }}
-                                value={dueDate && !isNaN(dueDate) ? dueDate.toISOString().split('T')[0] : ''}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val) {
-                                        setDueDate(new Date(val));
-                                    }
+                            >
+                                <Ionicons name="calendar-outline" size={20} color="#333" style={{ marginRight: 8 }} />
+                                <Text style={styles.dateText}>
+                                    {dueDate ? dueDate.toLocaleDateString() : 'Date'}
+                                </Text>
+                                <input
+                                    id="web-task-date"
+                                    type="date"
+                                    style={{
+                                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                        opacity: 0, width: '100%', height: '100%', cursor: 'pointer'
+                                    }}
+                                    value={dueDate ? `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}` : ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (!val) return;
+                                        const [y, m, d] = val.split('-');
+                                        const newDate = new Date((dueDate || new Date()).getTime());
+                                        newDate.setFullYear(parseInt(y), parseInt(m) - 1, parseInt(d));
+                                        setDueDate(newDate);
+                                    }}
+                                />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.dateButton, { flex: 1 }]}
+                                onPress={() => {
+                                    const input = document.getElementById('web-task-time');
+                                    if (input && input.showPicker) input.showPicker();
                                 }}
-                            />
-                        </TouchableOpacity>
+                            >
+                                <Ionicons name="time-outline" size={20} color="#333" style={{ marginRight: 8 }} />
+                                <Text style={styles.dateText}>
+                                    {dueDate ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Heure'}
+                                </Text>
+                                <input
+                                    id="web-task-time"
+                                    type="time"
+                                    style={{
+                                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                        opacity: 0, width: '100%', height: '100%', cursor: 'pointer'
+                                    }}
+                                    value={dueDate ? `${String(dueDate.getHours()).padStart(2, '0')}:${String(dueDate.getMinutes()).padStart(2, '0')}` : ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (!val) return;
+                                        const [h, min] = val.split(':');
+                                        const newDate = new Date((dueDate || new Date()).getTime());
+                                        newDate.setHours(parseInt(h), parseInt(min));
+                                        setDueDate(newDate);
+                                    }}
+                                />
+                            </TouchableOpacity>
+                        </View>
                     ) : (
                         <>
                             <TouchableOpacity
                                 style={styles.dateButton}
                                 onPress={() => setShowDatePicker(true)}
                             >
-                                <Ionicons name="calendar-outline" size={20} color="#333" />
+                                <Ionicons name="calendar-outline" size={20} color="#333" style={{ marginRight: 10 }} />
                                 <Text style={styles.dateText}>
-                                    {dueDate && !isNaN(dueDate) ? dueDate.toLocaleDateString() : ''} {dueDate && !isNaN(dueDate) ? dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    {dueDate ? `${dueDate.toLocaleDateString()} ${dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Choisir date & heure'}
                                 </Text>
                             </TouchableOpacity>
                             {showDatePicker && (
                                 <DateTimePicker
                                     testID="dateTimePicker"
                                     value={dueDate || new Date()}
-                                    mode="date"
+                                    mode="datetime"
                                     is24Hour={true}
                                     display="default"
                                     onChange={onChangeDate}

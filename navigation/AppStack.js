@@ -8,6 +8,9 @@ import AppDrawer from "./AppDrawer";
 import TaskFormScreen from "../screens/TaskFormScreen";
 import TodoDetailsScreen from "../screens/TodoDetailsScreen";
 import CategoryManagerScreen from "../screens/CategoryManagerScreen";
+import SettingsScreen from "../screens/SettingsScreen";
+import SuggestionsScreen from "../screens/SuggestionsScreen";
+import ReminderScreen from "../screens/ReminderScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -29,6 +32,9 @@ export default function AppStack() {
             <Stack.Screen name="TaskForm" component={TaskFormScreen} options={{ presentation: 'modal' }} />
             <Stack.Screen name="TodoDetails" component={TodoDetailsScreen} />
             <Stack.Screen name="CategoryManager" component={CategoryManagerScreen} options={{ headerShown: true, title: 'Catégories' }} />
+            <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: true, title: 'Préférences' }} />
+            <Stack.Screen name="Suggestions" component={SuggestionsScreen} options={{ headerShown: true, title: 'Idées & Suggestions' }} />
+            <Stack.Screen name="Reminders" component={ReminderScreen} options={{ headerShown: true, title: 'Rappels' }} />
           </>
         )}
       </Stack.Navigator>

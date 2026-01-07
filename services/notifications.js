@@ -10,7 +10,7 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync() {
-    let token;
+    if (Platform.OS === 'web') return;
 
     if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
@@ -30,35 +30,34 @@ export async function registerForPushNotificationsAsync() {
     }
 
     if (finalStatus !== 'granted') {
-        alert('Failed to get push token for push notification!');
+        console.log('Failed to get push token for push notification!');
         return;
     }
 }
 
-export async function scheduleTaskReminder(task) {
-    if (!task.dueDate || !task.reminder) return;
+export async function scheduleNotification(title, body, date) {
+    if (Platform.OS === 'web') return null;
 
-    const triggerDate = new Date(task.dueDate.seconds ? task.dueDate.seconds * 1000 : task.dueDate);
-    // If date is perfectly equal or in past, it might fire immediately or not at all.
-    // We usually want it slightly before? Or at the exact time.
-    // For now: exact time.
+    const triggerDate = new Date(date);
+    if (triggerDate.getTime() < Date.now()) return null;
 
-    if (triggerDate.getTime() < Date.now()) return; // Don't schedule for past
-
-    await Notifications.scheduleNotificationAsync({
+    return await Notifications.scheduleNotificationAsync({
         content: {
-            title: "Rappel de tâche",
-            body: `C'est l'heure pour : ${task.title}`,
-            data: { taskId: task.id },
+            title: title,
+            body: body,
             sound: true,
         },
         trigger: triggerDate,
     });
 }
 
-export async function cancelTaskReminder(taskId) {
-    // To cancel specific ID, we'd need to store the notification ID.
-    // For simplicity, we can modify this later. 
-    // currently scheduleNotificationAsync returns an ID.
-    // Ideally, we store this ID in Firestore task document.
+export async function cancelNotification(id) {
+    if (Platform.OS === 'web' || !id) return;
+    await Notifications.cancelScheduledNotificationAsync(id);
+}
+
+export async function scheduleTaskReminder(task) {
+    if (!task.dueDate || !task.reminder) return;
+    const triggerDate = new Date(task.dueDate.seconds ? task.dueDate.seconds * 1000 : task.dueDate);
+    return await scheduleNotification("Rappel de tâche", `C'est l'heure pour : ${task.title}`, triggerDate);
 }

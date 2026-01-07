@@ -1,21 +1,24 @@
 import React, { useEffect, useState, useContext } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, RefreshControl } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { AuthContext } from "../context/AuthContext";
 import { ThemeContext } from "../context/ThemeContext";
-import { listenToTodos } from "../services/firestore";
+import { listenToTodos, listenToUserSettings } from "../services/firestore";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function ProfileScreen() {
+  const navigation = useNavigation();
   const { user, logout } = useContext(AuthContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const [stats, setStats] = useState({ total: 0, done: 0, todo: 0 });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState({ displayName: '' });
 
   useEffect(() => {
     if (!user) return;
-    const unsubscribe = listenToTodos(user.uid, (tasks) => {
+    const unsubTasks = listenToTodos(user.uid, (tasks) => {
       const total = tasks.length;
       const done = tasks.filter(t => t.status === 'done').length;
       const todo = total - done;
@@ -25,8 +28,17 @@ export default function ProfileScreen() {
       setRecentActivity(tasks.slice(0, 3));
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const unsubSettings = listenToUserSettings(user.uid, (data) => {
+      setSettings(data);
+    });
+
+    return () => {
+      unsubTasks();
+      unsubSettings();
+    };
   }, [user]);
+
 
   const holidays = {
     '01-01': 'le Jour de l\'An',
@@ -46,6 +58,9 @@ export default function ProfileScreen() {
   })();
 
   const getSuggestionText = (todoCount) => {
+    const userHobbies = settings.activities || [];
+    const hobbyNames = userHobbies.map(h => h.name);
+
     if (currentHoliday) {
       return `C'est ${currentHoliday} ! Profitez de ce jour férié pour vous détendre ou faire une sortie en famille. 🎈`;
     }
@@ -55,11 +70,18 @@ export default function ProfileScreen() {
 
     if (todoCount > 5) return "Ouh là, beaucoup de tâches ! Priorisez les plus importantes et n'oubliez pas de faire des pauses. ☕";
 
+    if (todoCount === 0) {
+      if (isWeekend) {
+        const extra = hobbyNames.length > 0 ? ` Pourquoi ne pas faire un peu de ${hobbyNames[Math.floor(Math.random() * hobbyNames.length)]} ? 🎾` : " Pourquoi ne pas aller marcher ou voir un film ? 🎬";
+        return "C'est le week-end et tout est fait ! Temps libre total." + extra;
+      } else {
+        return "Pas de tâches ? Profitez-en pour lire 📚, méditer 🧘 ou avancer sur un projet perso ! ✨";
+      }
+    }
+
     if (isWeekend) {
-      if (todoCount === 0) return "C'est le week-end et tout est fait ! Pourquoi ne pas aller marcher, cuisiner un bon plat 🥘 ou aller au cinéma ? 🎬";
       return "Encore quelques petites choses à faire, mais gardez du temps pour vous reposer ! ✨";
     } else {
-      if (todoCount === 0) return "Journée calme ? C'est le moment idéal pour trier vos mails, lire cet article mis de côté ou apprendre un nouveau mot ! 📚";
       return "Une journée de travail classique. Restez concentré et vous aurez fini plus tôt ! 💪";
     }
   };
@@ -82,11 +104,13 @@ export default function ProfileScreen() {
           <Ionicons name="person-circle" size={50} color={theme.primary} />
           <View style={{ marginLeft: 10 }}>
             <Text style={[styles.greeting, { color: theme.text }]}>Bonjour,</Text>
-            <Text style={[styles.userEmail, { color: theme.text }]}>{user.email?.split('@')[0]}</Text>
+            <Text style={[styles.userEmail, { color: theme.text }]}>
+              {user.email?.split('@')[0]}
+            </Text>
           </View>
         </View>
-        <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
-          <Ionicons name={theme.name === 'dark' ? "moon" : "sunny"} size={24} color={theme.text} />
+        <TouchableOpacity onPress={() => navigation.navigate("Settings")} style={styles.iconBtn}>
+          <Ionicons name="settings-outline" size={24} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -109,7 +133,41 @@ export default function ProfileScreen() {
           <Text style={styles.suggText}>
             {getSuggestionText(stats.todo)}
           </Text>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Suggestions")}
+            style={styles.consultBtn}
+          >
+            <Text style={styles.consultBtnText}>
+              Découvrir plus d'idées d'activités
+            </Text>
+            <Ionicons name="arrow-forward" size={16} color="#8B5CF6" />
+          </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Activities Table Section */}
+      <Text style={styles.sectionTitle}>Mes Loisirs & Activités</Text>
+      <View style={[styles.tableCard, { backgroundColor: theme.name === 'dark' ? '#1f1f1f' : '#fff' }]}>
+        {/* Table Header */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Activité</Text>
+          <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Type</Text>
+        </View>
+
+        {/* Table Rows */}
+        {settings?.activities?.length > 0 ? (
+          settings.activities.map((act) => (
+            <View key={act.id} style={styles.tableRow}>
+              <Text style={[styles.tableCell, { flex: 1, color: theme.text, fontWeight: 'bold' }]}>{act.name}</Text>
+              <Text style={[styles.tableCell, { flex: 1, textAlign: 'right', color: theme.text }]}>{act.type}</Text>
+            </View>
+          ))
+        ) : (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ color: '#999', fontSize: 13 }}>Aucune activité enregistrée</Text>
+          </View>
+        )}
       </View>
 
       {/* Settings / Actions */}
@@ -119,29 +177,7 @@ export default function ProfileScreen() {
         <Text style={styles.logoutText}>Se déconnecter</Text>
       </TouchableOpacity>
 
-      {/* Debug Info */}
-      <View style={{ marginTop: 30, padding: 10, backgroundColor: '#eee', borderRadius: 8 }}>
-        <Text style={{ fontSize: 10, color: '#666' }}>DEBUG INFO</Text>
-        <Text style={{ fontSize: 10, color: '#666' }}>UID: {user.uid}</Text>
-        <TouchableOpacity
-          onPress={async () => {
-            try {
-              alert("Test de connexion...");
-              // Try to fetch users collection just to check connectivity
-              // We can't fetch 'users' root usually, but we can fetch our own todo list
-              const { getDocs, collection } = require("firebase/firestore");
-              const { db } = require("../services/firebase");
-              await getDocs(collection(db, "users", user.uid, "todos"));
-              alert("Connexion OK ! La base de données est accessible.");
-            } catch (e) {
-              alert("Erreur Connexion: " + e.message);
-            }
-          }}
-          style={{ marginTop: 5, padding: 5, backgroundColor: '#ddd', alignSelf: 'flex-start', borderRadius: 4 }}
-        >
-          <Text style={{ fontSize: 10 }}>Tester la connexion BDD</Text>
-        </TouchableOpacity>
-      </View>
+      <View style={{ height: 40 }} />
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -248,5 +284,80 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 10,
     fontSize: 16,
-  }
+  },
+  tableCard: {
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    marginBottom: 5,
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  tableCell: {
+    fontSize: 14,
+  },
+  consultBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingVertical: 5,
+  },
+  consultBtnText: {
+    color: '#8B5CF6',
+    fontWeight: 'bold',
+    fontSize: 13,
+    marginRight: 5,
+  },
+  ideasBox: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    padding: 15,
+    borderRadius: 12,
+    marginTop: -10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
+  },
+  ideasTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4B5563',
+    marginBottom: 10,
+  },
+  ideasGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ideaChip: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  ideaChipText: {
+    fontSize: 12,
+    color: '#4B5563',
+  },
 });

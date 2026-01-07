@@ -59,6 +59,28 @@ export async function updateTodoInFirestore(uid, taskId, data) {
   await updateDoc(ref, data);
 }
 
+// --- USER SETTINGS ---
+
+export function listenToUserSettings(uid, callback) {
+  const ref = doc(db, "users", uid, "settings", "preferences");
+  return onSnapshot(ref, (snap) => {
+    if (snap.exists()) {
+      callback(snap.data());
+    } else {
+      callback({
+        defaultPriority: 'medium',
+        notificationsEnabled: true,
+        displayName: '',
+      });
+    }
+  });
+}
+
+export async function updateUserSettings(uid, data) {
+  const ref = doc(db, "users", uid, "settings", "preferences");
+  await setDoc(ref, data, { merge: true });
+}
+
 export async function toggleTaskStatus(uid, taskId, currentStatus) {
   const newStatus = currentStatus === "done" ? "todo" : "done";
   await updateTodoInFirestore(uid, taskId, { status: newStatus });
@@ -118,4 +140,34 @@ export async function deleteCategoryFromFirestore(uid, id) {
 export async function updateCategoryInFirestore(uid, id, data) {
   const ref = doc(db, "users", uid, "categories", id);
   await updateDoc(ref, data);
+}
+
+// --- REMINDERS (Rappels) ---
+
+export function listenToReminders(uid, callback) {
+  const q = query(
+    collection(db, "users", uid, "reminders"),
+    orderBy("time", "asc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const reminders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    callback(reminders);
+  });
+}
+
+export async function addReminderToFirestore(uid, reminder) {
+  // reminder: { title, time (timestamp), notificationId }
+  return await addDoc(collection(db, "users", uid, "reminders"), {
+    ...reminder,
+    createdAt: Date.now()
+  });
+}
+
+export async function updateReminderInFirestore(uid, id, data) {
+  const ref = doc(db, "users", uid, "reminders", id);
+  await updateDoc(ref, data);
+}
+
+export async function deleteReminderFromFirestore(uid, id) {
+  await deleteDoc(doc(db, "users", uid, "reminders", id));
 }
