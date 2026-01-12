@@ -11,11 +11,18 @@ import CategoryManagerScreen from "../screens/CategoryManagerScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import SuggestionsScreen from "../screens/SuggestionsScreen";
 import ReminderScreen from "../screens/ReminderScreen";
+import { registerForPushNotificationsAsync } from "../services/notifications";
+import { useEffect } from "react";
 
 const Stack = createNativeStackNavigator();
 
 export default function AppStack() {
   const { user, loading } = useContext(AuthContext);
+
+  useEffect(() => {
+    registerForPushNotificationsAsync();
+  }, []);
+
   if (loading) return null;
 
   return (

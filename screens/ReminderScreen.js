@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useContext } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, Platform, Modal } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, Platform, Modal, ActivityIndicator } from "react-native";
 import { AuthContext } from "../context/AuthContext";
 import { ThemeContext } from "../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { listenToReminders, addReminderToFirestore, updateReminderInFirestore, deleteReminderFromFirestore } from "../services/firestore";
-import { scheduleNotification, cancelNotification } from "../services/notifications";
+import { scheduleNotification, cancelNotification, getNotificationPermissionStatus } from "../services/notifications";
 
 export default function ReminderScreen() {
     const { user } = useContext(AuthContext);
@@ -18,6 +18,7 @@ export default function ReminderScreen() {
     const [date, setDate] = useState(new Date());
     const [showPicker, setShowPicker] = useState(false);
     const [pickerMode, setPickerMode] = useState("date"); // 'date' or 'time'
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -47,33 +48,62 @@ export default function ReminderScreen() {
             return;
         }
 
-        const notificationId = await scheduleNotification(
-            "Rappel",
-            title,
-            date
-        );
+        if (date.getTime() <= Date.now() + 1000) {
+            showAlert("Action requise", "Veuillez choisir une date et une heure dans le futur.");
+            return;
+        }
 
-        const reminderData = {
-            title,
-            time: date.getTime(),
-            notificationId: notificationId || null,
-        };
-
+        setIsSaving(true);
         try {
+            let notificationId = null;
+            let techError = null;
+            try {
+                // Check permissions first via our service
+                const status = await getNotificationPermissionStatus();
+                console.log("Current Notif Status:", status);
+
+                notificationId = await scheduleNotification(
+                    "Rappel",
+                    title,
+                    date
+                );
+            } catch (notifError) {
+                console.error("Notification Error Details:", notifError);
+                techError = notifError.message || String(notifError);
+            }
+
+            const reminderData = {
+                title,
+                time: date.getTime(),
+                notificationId: notificationId || null,
+            };
+
             if (editingId) {
-                // Cancel old notification if editing (simpler approach)
+                // Cancel old notification if editing
                 const old = reminders.find(r => r.id === editingId);
                 if (old?.notificationId) {
-                    await cancelNotification(old.notificationId);
+                    try {
+                        await cancelNotification(old.notificationId);
+                    } catch (e) {
+                        console.error("Cancel Notif Error:", e);
+                    }
                 }
                 await updateReminderInFirestore(user.uid, editingId, reminderData);
             } else {
                 await addReminderToFirestore(user.uid, reminderData);
             }
+
+            if (!notificationId && Platform.OS !== 'web') {
+                const errorContext = techError ? `\n\nErreur technique : ${techError}` : "\n\n(Vérifiez vos permissions)";
+                showAlert("Rappel enregistré", `Le rappel a été enregistré, mais la notification n'a pas pu être programmée.${errorContext}`);
+            }
+
             resetForm();
         } catch (error) {
-            console.error("Save Error:", error);
-            showAlert("Erreur", "Impossible d'enregistrer le rappel");
+            console.error("Firestore Save Error:", error);
+            showAlert("Erreur", "Impossible d'enregistrer les données dans Firestore.");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -248,6 +278,8 @@ export default function ReminderScreen() {
                                 value={date}
                                 mode={pickerMode}
                                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                textColor={theme.text}
+                                themeVariant={theme.name === 'dark' ? 'dark' : 'light'}
                                 onChange={(e, d) => {
                                     setShowPicker(false);
                                     if (d) setDate(d);
@@ -259,8 +291,18 @@ export default function ReminderScreen() {
                             <TouchableOpacity onPress={resetForm} style={styles.cancelBtn}>
                                 <Text style={{ color: '#666' }}>Annuler</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Enregistrer</Text>
+                            <TouchableOpacity
+                                onPress={handleSave}
+                                style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
+                                disabled={isSaving}
+                            >
+                                {isSaving ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                                        {editingId ? "Modifier" : "Enregistrer"}
+                                    </Text>
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>

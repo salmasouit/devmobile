@@ -15,11 +15,8 @@ export const app = initializeApp(firebaseConfig);
 
 let auth;
 if (Platform.OS === 'web') {
-    // Web uses standard browser persistence by default or explicit browserLocalPersistence
     auth = getAuth(app);
-    // Alternatively: auth = initializeAuth(app, { persistence: browserLocalPersistence });
 } else {
-    // Native uses AsyncStorage
     auth = initializeAuth(app, {
         persistence: getReactNativePersistence(ReactNativeAsyncStorage)
     });
@@ -29,11 +26,13 @@ export { auth };
 
 export const db = getFirestore(app);
 
-// Enable offline persistence (web/native compatible if supported)
-enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code == 'failed-precondition') {
-        console.warn('Persistence failed: Multiple tabs open');
-    } else if (err.code == 'unimplemented') {
-        console.warn('Persistence failed: Not supported');
-    }
-});
+// Enable offline persistence (web only)
+if (Platform.OS === 'web') {
+    enableIndexedDbPersistence(db).catch((err) => {
+        if (err.code == 'failed-precondition') {
+            console.warn('Persistence failed: Multiple tabs open');
+        } else if (err.code == 'unimplemented') {
+            console.warn('Persistence failed: Not supported');
+        }
+    });
+}

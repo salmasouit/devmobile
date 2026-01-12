@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, ScrollView
 import { useNavigation, useRoute } from "@react-navigation/native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AuthContext } from "../context/AuthContext";
+import { ThemeContext } from "../context/ThemeContext";
 import { addTodoToFirestore, updateTodoInFirestore, listenToCategories, listenToUserSettings } from "../services/firestore";
 import { scheduleTaskReminder, registerForPushNotificationsAsync } from "../services/notifications";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +12,7 @@ export default function TaskFormScreen() {
     const navigation = useNavigation();
     const route = useRoute();
     const { user } = useContext(AuthContext);
+    const { theme } = useContext(ThemeContext);
 
     // If editing, we get initial task data
     const editingTask = route.params?.task;
@@ -282,6 +284,8 @@ export default function TaskFormScreen() {
                                     mode="datetime"
                                     is24Hour={true}
                                     display="default"
+                                    textColor={theme.text}
+                                    themeVariant={theme.name === 'dark' ? 'dark' : 'light'}
                                     onChange={onChangeDate}
                                 />
                             )}

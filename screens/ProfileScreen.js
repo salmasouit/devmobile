@@ -109,9 +109,14 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate("Settings")} style={styles.iconBtn}>
-          <Ionicons name="settings-outline" size={24} color={theme.text} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity onPress={toggleTheme} style={styles.iconBtn}>
+            <Ionicons name={theme.name === 'dark' ? "moon" : "sunny"} size={22} color={theme.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("Settings")} style={styles.iconBtn}>
+            <Ionicons name="settings-outline" size={24} color={theme.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats Section */}
@@ -171,7 +176,29 @@ export default function ProfileScreen() {
       </View>
 
       {/* Settings / Actions */}
-      <Text style={styles.sectionTitle}>Paramètres</Text>
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Paramètres</Text>
+
+      <TouchableOpacity
+        onPress={toggleTheme}
+        style={[styles.settingBtn, { backgroundColor: theme.name === 'dark' ? '#333' : '#F3F4F6' }]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons
+            name={theme.name === 'dark' ? "moon" : "sunny"}
+            size={20}
+            color={theme.name === 'dark' ? "#FBBF24" : "#F59E0B"}
+          />
+          <Text style={[styles.settingText, { color: theme.text }]}>
+            Mode {theme.name === 'dark' ? 'Sombre' : 'Clair'}
+          </Text>
+        </View>
+        <Ionicons
+          name={theme.name === 'dark' ? "toggle" : "toggle-outline"}
+          size={32}
+          color={theme.name === 'dark' ? "#10B981" : "#D1D5DB"}
+        />
+      </TouchableOpacity>
+
       <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
         <Ionicons name="log-out-outline" size={20} color="#EF4444" />
         <Text style={styles.logoutText}>Se déconnecter</Text>
@@ -281,6 +308,19 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#EF4444',
+    fontWeight: 'bold',
+    marginLeft: 10,
+    fontSize: 16,
+  },
+  settingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  settingText: {
     fontWeight: 'bold',
     marginLeft: 10,
     fontSize: 16,
